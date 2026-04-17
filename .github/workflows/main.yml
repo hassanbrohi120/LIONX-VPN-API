@@ -13,6 +13,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Poori history fetch karega taake conflict na aaye
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -34,7 +36,12 @@ jobs:
         run: |
           git config --global user.name "LIONX-Bot"
           git config --global user.email "bot@lionxvpn.com"
+          
+          # Pehle remote changes ko local code ke sath merge karein
+          git pull --rebase https://x-access-token:${MY_TOKEN}@github.com/${{ github.repository }}.git main
+          
           git add services.json
           git commit -m "Hourly Agentic Update" || exit 0
-          # Force push taake rejected error khatam ho jaye
-          git push --force https://x-access-token:${MY_TOKEN}@github.com/${{ github.repository }}.git HEAD:main
+          
+          # Final Push
+          git push https://x-access-token:${MY_TOKEN}@github.com/${{ github.repository }}.git HEAD:main
