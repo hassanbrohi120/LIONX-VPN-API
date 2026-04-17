@@ -11,10 +11,12 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      # Step 1: Checkout with Token (Ye line login ka masla hal karegi)
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Poori history fetch karega taake conflict na aaye
+          fetch-depth: 0
+          token: ${{ secrets.GH_TOKEN }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -26,22 +28,21 @@ jobs:
 
       - name: Run Script
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: python update_vpn.py
 
+      # Step 2: Clean Commit & Push
       - name: Commit and Push
-        env:
-          MY_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
           git config --global user.name "LIONX-Bot"
           git config --global user.email "bot@lionxvpn.com"
           
-          # Pehle remote changes ko local code ke sath merge karein
-          git pull --rebase https://x-access-token:${MY_TOKEN}@github.com/${{ github.repository }}.git main
-          
+          # 1. File add karein
           git add services.json
           git commit -m "Hourly Agentic Update" || exit 0
           
-          # Final Push
-          git push https://x-access-token:${MY_TOKEN}@github.com/${{ github.repository }}.git HEAD:main
+          # 2. Pehle latest code fetch aur rebase karein taake conflict na ho
+          git pull --rebase origin main
+          
+          # 3. Final Push
+          git push origin main
