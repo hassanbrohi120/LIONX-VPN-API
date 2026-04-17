@@ -2,67 +2,66 @@ import os
 import json
 import google.generativeai as genai
 
-# 🔑 API Key load
 api_key = os.getenv("GEMINI_API_KEY")
 
 if not api_key:
-    print("API key missing!")
+    print("API key missing")
     exit()
 
 genai.configure(api_key=api_key)
 
-# 🤖 Model
 model = genai.GenerativeModel("gemini-1.5-flash")
 
-# 🧠 Prompt (important)
 prompt = """
-Generate a JSON for VPN services.
+Create VPN server list in STRICT JSON format only.
 
-Format:
+Return format:
 {
   "name": "LIONX VPN",
-  "status": "active",
   "servers": [
     {
-      "country": "Country Name",
-      "ip": "IP Address",
-      "protocol": "WireGuard/OpenVPN",
+      "country": "Pakistan",
+      "ip": "1.1.1.1",
+      "protocol": "WireGuard",
       "status": "online"
     }
   ]
 }
 
-Generate at least 5 servers.
-Only return JSON. No explanation.
+Must return valid JSON only. No markdown, no text.
 """
 
 try:
-    # 🔥 Gemini response
     response = model.generate_content(prompt)
-
     text = response.text.strip()
 
-    # 🧹 clean response (kabhi ```json aata hai)
-    if text.startswith("```"):
+    print("RAW RESPONSE:", text)
+
+    # remove ``` if exists
+    if "```" in text:
         text = text.replace("```json", "").replace("```", "").strip()
 
-    # 🔄 convert to JSON
     data = json.loads(text)
 
 except Exception as e:
-    print("Gemini error:", e)
+    print("ERROR:", e)
 
-    # fallback data (kabhi API fail ho jaye)
+    # ⚠️ fallback (important so file empty na ho)
     data = {
         "name": "LIONX VPN",
         "status": "fallback",
         "servers": [
-            {"country": "Pakistan", "ip": "1.1.1.1", "protocol": "WireGuard", "status": "online"}
+            {
+                "country": "Pakistan",
+                "ip": "1.1.1.1",
+                "protocol": "WireGuard",
+                "status": "online"
+            }
         ]
     }
 
-# 💾 file write
+# 💾 IMPORTANT: overwrite safe way
 with open("services.json", "w") as f:
     json.dump(data, f, indent=4)
 
-print("services.json updated successfully")
+print("UPDATED services.json")
