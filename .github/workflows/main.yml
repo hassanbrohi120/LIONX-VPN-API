@@ -12,10 +12,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4 # Version update kar diya hai
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v5 # Version update kar diya hai
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
@@ -36,5 +36,5 @@ jobs:
           git config --global user.email "bot@lionxvpn.com"
           git add services.json
           git commit -m "Hourly Agentic Update" || exit 0
-          # Ye line aapka token direct use karegi push ke liye
-          git push https://x-access-token:${MY_TOKEN}@github.com/${{ github.repository }}.git HEAD:main
+          # Force push taake rejected error khatam ho jaye
+          git push --force https://x-access-token:${MY_TOKEN}@github.com/${{ github.repository }}.git HEAD:main
