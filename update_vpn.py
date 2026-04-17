@@ -5,118 +5,194 @@ import requests
 import re
 import google.generativeai as genai
 from urllib.parse import urlparse
+from concurrent.futures import ThreadPoolExecutor
 
-# 1. API Configurations
+# ======================
+# CONFIG
+# ======================
 GEMINI_KEY = os.getenv("GEMINI_API_KEY")
 GH_TOKEN = os.getenv("GH_TOKEN")
 
 genai.configure(api_key=GEMINI_KEY)
 model = genai.GenerativeModel('gemini-1.5-flash')
 
-# 2. Ping Test Function (Timeout 5s for better accuracy)
+HEADERS = {
+    "Authorization": f"token {GH_TOKEN}",
+    "Accept": "application/vnd.github.v3+json"
+}
+
+# ======================
+# FAST SAFE PING CHECK
+# ======================
 def is_alive(config_url):
     try:
-        if not config_url: return False
+        if not config_url:
+            return False
+
         clean_url = config_url.split('#')[0]
         parsed = urlparse(clean_url)
         host_port = parsed.netloc.split('@')[-1]
-        
+
+        if not host_port:
+            return False
+
         if ':' in host_port:
-            host = host_port.split(':')[0]
-            port = int(host_port.split(':')[1])
+            host, port = host_port.split(':')
+            port = int(port)
         else:
             host = host_port
-            port = 443 # Default port
+            port = 443
 
-        with socket.create_connection((host, port), timeout=5):
-            return True
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(3)
+        result = sock.connect_ex((host, port))
+        sock.close()
+
+        return result == 0
+
     except:
         return False
 
-# 3. GitHub Search Function
+
+# ======================
+# GITHUB SEARCH FIXED
+# ======================
 def search_github_configs():
-    print("GitHub se naye servers dhoond raha hoon...")
-    headers = {"Authorization": f"token {GH_TOKEN}"}
+    print("GitHub scanning...")
+
     query = "ss:// OR hy2:// extension:txt OR extension:md"
-    url = f"[https://api.github.com/search/code?q=](https://api.github.com/search/code?q=){query}&sort=indexed&order=desc"
-    
-    found_configs = []
+    url = f"https://api.github.com/search/code?q={query}&per_page=10"
+
+    found = []
+
     try:
-        response = requests.get(url, headers=headers)
-        if response.status_code == 200:
-            items = response.json().get('items', [])[:15] 
-            for item in items:
-                file_url = item['html_url'].replace('github.com', 'raw.githubusercontent.com').replace('/blob/', '/')
-                content = requests.get(file_url).text
-                links = re.findall(r'(ss://[^\s\'"<>]+|hy2://[^\s\'"<>]+)', content)
+        r = requests.get(url, headers=HEADERS, timeout=10)
+        data = r.json()
+
+        for item in data.get("items", []):
+            raw_url = item["html_url"].replace(
+                "github.com",
+                "raw.githubusercontent.com"
+            ).replace("/blob/", "/")
+
+            try:
+                text = requests.get(raw_url, timeout=8).text
+                links = re.findall(r'(ss://[^\s\'"<>]+|hy2://[^\s\'"<>]+)', text)
+
                 for link in links:
-                    found_configs.append({
-                        "name": "LIONX-GH-SERVER",
+                    found.append({
+                        "name": "GH-SERVER",
                         "config": link,
                         "countryCode": "un"
                     })
-    except Exception as e:
-        print(f"GitHub Error: {e}")
-    return found_configs
+            except:
+                continue
 
-# 4. Gemini AI Search (With JSON extraction fix)
-def get_new_servers_from_ai():
-    print("Gemini AI se naye servers mangwa raha hoon...")
-    prompt = """Provide a JSON list of 30 fresh Shadowsocks (ss://) and Hysteria2 (hy2://) nodes. 
-    Format: [{"name": "Country", "config": "url", "countryCode": "us"}]. 
-    Return ONLY the raw JSON array."""
+    except Exception as e:
+        print("GitHub error:", e)
+
+    return found
+
+
+# ======================
+# GEMINI AI FIXED
+# ======================
+def get_ai_servers():
+    print("AI servers fetch...")
+
+    prompt = """
+Return ONLY JSON array:
+
+[
+  {"name":"US","config":"ss://...","countryCode":"us"}
+]
+
+Generate 15 working VPN nodes.
+"""
+
     try:
-        response = model.generate_content(prompt)
-        text = response.text
-        # Extract JSON using Regex (Important Fix)
+        res = model.generate_content(prompt)
+        text = res.text.strip()
+
         match = re.search(r'\[.*\]', text, re.DOTALL)
         if match:
-            return json.loads(match.group())
-        return []
+            data = json.loads(match.group())
+            if isinstance(data, list):
+                return data
+
     except Exception as e:
-        print(f"AI Error: {e}")
-        return []
+        print("AI error:", e)
 
-# 5. Main Process
+    return []
+
+
+# ======================
+# MULTITHREAD CHECK (FAST)
+# ======================
+def filter_alive(nodes):
+    alive = []
+
+    def check(node):
+        if is_alive(node.get("config")):
+            return node
+        return None
+
+    with ThreadPoolExecutor(max_workers=20) as executor:
+        results = executor.map(check, nodes)
+
+    for r in results:
+        if r:
+            alive.append(r)
+
+    return alive
+
+
+# ======================
+# MAIN
+# ======================
 def main():
-    file_path = 'services.json'
-    
-    # Load current file
+    file_path = "services.json"
+
+    # Load file safely
     try:
-        if os.path.exists(file_path):
-            with open(file_path, 'r') as f:
-                current_servers = json.load(f)
-        else:
-            current_servers = []
+        with open(file_path, "r") as f:
+            current = json.load(f)
     except:
-        current_servers = []
+        current = []
 
-    print(f"Pehle se maujood: {len(current_servers)}")
+    print("Current:", len(current))
 
-    # Step 1: Filter Alive Servers
-    print("Zinda servers check ho rahe hain...")
-    verified_servers = [s for s in current_servers if is_alive(s.get('config', ''))]
-    print(f"Zinda bache: {len(verified_servers)}")
+    # Step 1: clean old
+    print("Checking existing servers...")
+    current = filter_alive(current)
 
-    # Step 2: Add New if needed
-    if len(verified_servers) < 20:
-        new_nodes = search_github_configs() + get_new_servers_from_ai()
-        print(f"Dhoonde gaye naye: {len(new_nodes)}")
-        
-        for node in new_nodes:
-            if is_alive(node.get('config', '')):
-                verified_servers.append(node)
+    # Step 2: refill if low
+    if len(current) < 15:
+        new_nodes = search_github_configs() + get_ai_servers()
 
-    # Step 3: Remove Duplicates
-    final_data = list({s['config']: s for s in verified_servers}.values())
+        print("New found:", len(new_nodes))
 
-    # Step 4: Final Save (Only if not empty)
-    if final_data:
-        with open(file_path, 'w') as f:
-            json.dump(final_data, f, indent=2)
-        print(f"Success! {len(final_data)} servers save ho gaye.")
+        current += filter_alive(new_nodes)
+
+    # Step 3: remove duplicates
+    unique = {}
+    for s in current:
+        key = s.get("config")
+        if key:
+            unique[key] = s
+
+    final = list(unique.values())
+
+    # Step 4: save safely
+    if final:
+        with open(file_path, "w") as f:
+            json.dump(final, f, indent=2)
+
+        print("Saved:", len(final))
+
     else:
-        print("Koi working server nahi mila, file update nahi ki.")
+        print("No valid servers found")
+
 
 if __name__ == "__main__":
     main()
