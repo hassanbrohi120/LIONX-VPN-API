@@ -1,5 +1,4 @@
 name: LIONX Auto Updater
-
 on:
   schedule:
     - cron: '0 * * * *'
@@ -11,29 +10,35 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repo
+      - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Setup Python
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: pip install google-generativeai
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests google-generativeai
 
-      - name: Run script
+      - name: Run Script
         env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: python update_vpn.py
 
-      - name: Commit & Push
+      - name: Commit and Push
+        env:
+          MY_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
-          git config user.name "LIONX-Bot"
-          git config user.email "bot@lionxvpn.com"
-
+          git config --global user.name "LIONX-Bot"
+          git config --global user.email "bot@lionxvpn.com"
+          git pull https://x-access-token:${MY_TOKEN}@github.com/${{ github.repository }}.git main --rebase
           git add services.json
-          git commit -m "Auto Update" || exit 0
-          git push origin main
+          git commit -m "Hourly Agentic Update" || exit 0
+          git push https://x-access-token:${MY_TOKEN}@github.com/${{ github.repository }}.git HEAD:main
