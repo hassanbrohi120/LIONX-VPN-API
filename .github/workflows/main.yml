@@ -1,67 +1,39 @@
-import os
-import json
-import google.generativeai as genai
+name: LIONX Auto Updater
 
-api_key = os.getenv("GEMINI_API_KEY")
+on:
+  schedule:
+    - cron: '0 * * * *'
+  workflow_dispatch:
 
-if not api_key:
-    print("API key missing")
-    exit()
+permissions:
+  contents: write
 
-genai.configure(api_key=api_key)
+jobs:
+  build:
+    runs-on: ubuntu-latest
 
-model = genai.GenerativeModel("gemini-1.5-flash")
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
 
-prompt = """
-Create VPN server list in STRICT JSON format only.
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
 
-Return format:
-{
-  "name": "LIONX VPN",
-  "servers": [
-    {
-      "country": "Pakistan",
-      "ip": "1.1.1.1",
-      "protocol": "WireGuard",
-      "status": "online"
-    }
-  ]
-}
+      - name: Install dependencies
+        run: pip install google-generativeai
 
-Must return valid JSON only. No markdown, no text.
-"""
+      - name: Run script
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python update_vpn.py
 
-try:
-    response = model.generate_content(prompt)
-    text = response.text.strip()
+      - name: Commit & Push
+        run: |
+          git config user.name "LIONX-Bot"
+          git config user.email "bot@lionxvpn.com"
 
-    print("RAW RESPONSE:", text)
-
-    # remove ``` if exists
-    if "```" in text:
-        text = text.replace("```json", "").replace("```", "").strip()
-
-    data = json.loads(text)
-
-except Exception as e:
-    print("ERROR:", e)
-
-    # ⚠️ fallback (important so file empty na ho)
-    data = {
-        "name": "LIONX VPN",
-        "status": "fallback",
-        "servers": [
-            {
-                "country": "Pakistan",
-                "ip": "1.1.1.1",
-                "protocol": "WireGuard",
-                "status": "online"
-            }
-        ]
-    }
-
-# 💾 IMPORTANT: overwrite safe way
-with open("services.json", "w") as f:
-    json.dump(data, f, indent=4)
-
-print("UPDATED services.json")
+          git add services.json
+          git commit -m "Auto Update" || exit 0
+          git push origin main
