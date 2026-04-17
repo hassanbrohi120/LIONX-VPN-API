@@ -1,1 +1,11 @@
-[]
+{
+    "name": "LIONX VPN",
+    "servers": [
+        {
+            "country": "Pakistan",
+            "ip": "1.1.1.1",
+            "protocol": "WireGuard",
+            "status": "online"
+        }
+    ]
+}
