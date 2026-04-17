@@ -4,7 +4,6 @@ on:
     - cron: '0 * * * *'
   workflow_dispatch:
 
-# Ye hissa permission pakki kar dega
 permissions:
   contents: write
 
@@ -13,12 +12,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4 # Version update kar diya hai
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5 # Version update kar diya hai
         with:
-          python-version: '3.x'
+          python-version: '3.11'
 
       - name: Install dependencies
         run: pip install requests google-generativeai
@@ -30,9 +29,12 @@ jobs:
         run: python update_vpn.py
 
       - name: Commit and Push
+        env:
+          MY_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
           git config --global user.name "LIONX-Bot"
           git config --global user.email "bot@lionxvpn.com"
           git add services.json
           git commit -m "Hourly Agentic Update" || exit 0
-          git push
+          # Ye line aapka token direct use karegi push ke liye
+          git push https://x-access-token:${MY_TOKEN}@github.com/${{ github.repository }}.git HEAD:main
