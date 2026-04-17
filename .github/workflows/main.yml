@@ -1,16 +1,55 @@
-- name: Commit and Push
-        env:
-          MY_TOKEN: ${{ secrets.GH_TOKEN }}
-        run: |
-          git config --global user.name "LIONX-Bot"
-          git config --global user.email "bot@lionxvpn.com"
-          
-          # Pehle changes add karein
-          git add services.json
-          git commit -m "Hourly Agentic Update" || exit 0
-          
-          # Latest code fetch aur rebase karein taake conflict na ho
-          git pull --rebase https://x-access-token:${MY_TOKEN}@github.com/${{ github.repository }}.git main
-          
-          # Apne token ke zariye push karein
-          git push https://x-access-token:${MY_TOKEN}@github.com/${{ github.repository }}.git HEAD:main
+name: LIONX Auto Updater
+
+on:
+  schedule:
+    - cron: '0 * * * *'   # har ghante run hoga
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # ✅ Step 1: Checkout repo with token
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GH_TOKEN }}
+
+      # ✅ Step 2: Python setup
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # ✅ Step 3: Dependencies install
+      - name: Install dependencies
+        run: pip install requests google-generativeai
+
+      # ✅ Step 4: Script run
+      - name: Run Script
+env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python update_vpn.py
+
+      # ✅ Step 5: Commit & Push (FIXED VERSION)
+      - name: Commit and Push
+run: |
+         git config --global user.name "LIONX-Bot"
+         git config --global user.email "bot@lionxvpn.com"
+
+          # 1. latest changes pull karo
+          git pull --rebase origin main
+
+          # 2. file add karo
+         git add services.json
+
+          # 3. commit (agar changes na ho to skip)
+          git commit -m "Hourly Agentic Update" || echo "No changes to commit"
+
+          # 4. push with safe force (conflict avoid)
+          git push origin main --force-with-lease
