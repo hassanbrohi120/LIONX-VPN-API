@@ -1,67 +1,27 @@
-import os
 import json
-import google.generativeai as genai
 
-api_key = os.getenv("GEMINI_API_KEY")
+print("TEST RUN STARTED")
 
-if not api_key:
-    print("API key missing")
-    exit()
-
-genai.configure(api_key=api_key)
-
-model = genai.GenerativeModel("gemini-1.5-flash")
-
-prompt = """
-Create VPN server list in STRICT JSON format only.
-
-Return format:
-{
-  "name": "LIONX VPN",
-  "servers": [
-    {
-      "country": "Pakistan",
-      "ip": "1.1.1.1",
-      "protocol": "WireGuard",
-      "status": "online"
-    }
-  ]
+data = {
+    "name": "LIONX TEST VPN",
+    "status": "testing",
+    "servers": [
+        {
+            "country": "Pakistan",
+            "ip": "1.1.1.1",
+            "protocol": "WireGuard",
+            "status": "online"
+        },
+        {
+            "country": "USA",
+            "ip": "8.8.8.8",
+            "protocol": "OpenVPN",
+            "status": "online"
+        }
+    ]
 }
 
-Must return valid JSON only. No markdown, no text.
-"""
-
-try:
-    response = model.generate_content(prompt)
-    text = response.text.strip()
-
-    print("RAW RESPONSE:", text)
-
-    # remove ``` if exists
-    if "```" in text:
-        text = text.replace("```json", "").replace("```", "").strip()
-
-    data = json.loads(text)
-
-except Exception as e:
-    print("ERROR:", e)
-
-    # ⚠️ fallback (important so file empty na ho)
-    data = {
-        "name": "LIONX VPN",
-        "status": "fallback",
-        "servers": [
-            {
-                "country": "Pakistan",
-                "ip": "1.1.1.1",
-                "protocol": "WireGuard",
-                "status": "online"
-            }
-        ]
-    }
-
-# 💾 IMPORTANT: overwrite safe way
 with open("services.json", "w") as f:
     json.dump(data, f, indent=4)
 
-print("UPDATED services.json")
+print("TEST COMPLETE - FILE UPDATED")
